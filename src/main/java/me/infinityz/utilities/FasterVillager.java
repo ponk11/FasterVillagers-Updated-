@@ -1,7 +1,12 @@
 package me.infinityz.utilities;
 
+import java.util.EnumSet;
+import java.util.Objects;
+import java.util.Set;
 import org.bukkit.Bukkit;
-import org.bukkit.entity.EntityType;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.memory.MemoryKey;
 import org.bukkit.event.EventHandler;
@@ -13,75 +18,68 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class FasterVillager extends JavaPlugin implements Listener {
 
+    private static final double JOB_SITE_SEARCH_RADIUS = 10.0;
+    private static final Set<Material> JOB_SITE_BLOCKS = EnumSet.of(
+            Material.BLAST_FURNACE,
+            Material.SMOKER,
+            Material.CARTOGRAPHY_TABLE,
+            Material.BREWING_STAND,
+            Material.COMPOSTER,
+            Material.BARREL,
+            Material.FLETCHING_TABLE,
+            Material.CAULDRON,
+            Material.STONECUTTER,
+            Material.LOOM,
+            Material.SMITHING_TABLE,
+            Material.GRINDSTONE,
+            Material.LECTERN
+    );
+
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlace2(BlockPlaceEvent e) {
-        switch (e.getBlock().getType()) {
-            case BLAST_FURNACE:
-            case SMOKER:
-            case CARTOGRAPHY_TABLE:
-            case BREWING_STAND:
-            case COMPOSTER:
-            case BARREL:
-            case FLETCHING_TABLE:
-            case CAULDRON:
-            case LECTERN:
-            case STONECUTTER:
-            case LOOM:
-            case SMITHING_TABLE:
-            case GRINDSTONE: {
-                e.getBlock().getLocation().getNearbyLivingEntities(10, 10).stream()
-                        .filter(it -> it.getType() == EntityType.VILLAGER)
-                        .filter(it -> (((Villager) it).getVillagerLevel() == 1
-                                && ((Villager) it).getVillagerExperience() == 0))
-                        .findFirst().ifPresent(it -> {
-                            ((Villager) it).setMemory(MemoryKey.JOB_SITE, e.getBlock().getLocation());
-                        });
-                break;
-            }
-            default: {
-                break;
-            }
+    public void onBlockPlace(BlockPlaceEvent event) {
+        Material placed = event.getBlockPlaced().getType();
+        if (!JOB_SITE_BLOCKS.contains(placed)) {
+            return;
         }
 
+        Location blockLocation = event.getBlockPlaced().getLocation();
+        for (LivingEntity entity : blockLocation.getNearbyLivingEntities(JOB_SITE_SEARCH_RADIUS, JOB_SITE_SEARCH_RADIUS, JOB_SITE_SEARCH_RADIUS)) {
+            if (!(entity instanceof Villager villager)) {
+                continue;
+            }
+
+            if (isCandidate(villager) && villager.getMemory(MemoryKey.JOB_SITE) == null) {
+                villager.setMemory(MemoryKey.JOB_SITE, blockLocation);
+                return;
+            }
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlace2(BlockBreakEvent e) {
-        switch (e.getBlock().getType()) {
-            case BLAST_FURNACE:
-            case SMOKER:
-            case CARTOGRAPHY_TABLE:
-            case BREWING_STAND:
-            case COMPOSTER:
-            case BARREL:
-            case FLETCHING_TABLE:
-            case CAULDRON:
-            case LECTERN:
-            case STONECUTTER:
-            case LOOM:
-            case SMITHING_TABLE:
-            case GRINDSTONE: {
-                e.getBlock().getLocation().getNearbyLivingEntities(10, 10).stream()
-                        .filter(it -> it.getType() == EntityType.VILLAGER)
-                        .filter(it -> (((Villager) it).getVillagerLevel() == 1
-                                && ((Villager) it).getVillagerExperience() == 0)
-                                && ((Villager) it).getMemory(MemoryKey.JOB_SITE) != null
-                                && ((Villager) it).getMemory(MemoryKey.JOB_SITE).equals(e.getBlock().getLocation()))
-                        .findFirst().ifPresent(it -> {
-                            ((Villager) it).setMemory(MemoryKey.JOB_SITE, e.getBlock().getLocation());
-                        });
-                break;
-            }
-            default: {
-                break;
-            }
+    public void onBlockBreak(BlockBreakEvent event) {
+        Material broken = event.getBlock().getType();
+        if (!JOB_SITE_BLOCKS.contains(broken)) {
+            return;
         }
 
+        Location blockLocation = event.getBlock().getLocation();
+        for (LivingEntity entity : blockLocation.getNearbyLivingEntities(JOB_SITE_SEARCH_RADIUS, JOB_SITE_SEARCH_RADIUS, JOB_SITE_SEARCH_RADIUS)) {
+            if (!(entity instanceof Villager villager)) {
+                continue;
+            }
+
+            if (Objects.equals(villager.getMemory(MemoryKey.JOB_SITE), blockLocation)) {
+                villager.setMemory(MemoryKey.JOB_SITE, null);
+            }
+        }
     }
 
+    private boolean isCandidate(Villager villager) {
+        return villager.getVillagerLevel() == 1 && villager.getVillagerExperience() == 0;
+    }
 }
