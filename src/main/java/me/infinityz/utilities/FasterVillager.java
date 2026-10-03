@@ -1,11 +1,15 @@
 package me.infinityz.utilities;
 
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.bukkit.Bukkit;
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.util.RayTraceResult;
+import org.bukkit.util.Vector;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.memory.MemoryKey;
@@ -34,6 +38,21 @@ public class FasterVillager extends JavaPlugin implements Listener {
             Material.GRINDSTONE,
             Material.LECTERN
     );
+            private static final Map<Material, Villager.Profession> PROFESSIONS = Map.ofEntries(
+                Map.entry(Material.BLAST_FURNACE, Villager.Profession.ARMORER),
+                Map.entry(Material.SMOKER, Villager.Profession.BUTCHER),
+                Map.entry(Material.CARTOGRAPHY_TABLE, Villager.Profession.CARTOGRAPHER),
+                Map.entry(Material.BREWING_STAND, Villager.Profession.CLERIC),
+                Map.entry(Material.COMPOSTER, Villager.Profession.FARMER),
+                Map.entry(Material.BARREL, Villager.Profession.FISHERMAN),
+                Map.entry(Material.FLETCHING_TABLE, Villager.Profession.FLETCHER),
+                Map.entry(Material.CAULDRON, Villager.Profession.LEATHERWORKER),
+                Map.entry(Material.LECTERN, Villager.Profession.LIBRARIAN),
+                Map.entry(Material.STONECUTTER, Villager.Profession.MASON),
+                Map.entry(Material.LO﻿OM, Villager.Profession.SHEPHERD),
+                Map.entry(Material.SMITHING_TABLE, Villager.Profession.TOOLSMITH),
+                Map.entry(Material.GRINDSTONE, Villager.Profession.WEAPONSMITH)
+            );
 
     @Override
     public void onEnable() {
@@ -53,7 +72,8 @@ public class FasterVillager extends JavaPlugin implements Listener {
                 continue;
             }
 
-            if (isCandidate(villager) && villager.getMemory(MemoryKey.JOB_SITE) == null) {
+            if (isCandidate(villager) && canSeeWorkstation(villager, blockLocation)) {
+                villager.setProfession(PROFESSIONS.get(placed));
                 villager.setMemory(MemoryKey.JOB_SITE, blockLocation);
                 return;
             }
@@ -75,11 +95,38 @@ public class FasterVillager extends JavaPlugin implements Listener {
 
             if (Objects.equals(villager.getMemory(MemoryKey.JOB_SITE), blockLocation)) {
                 villager.setMemory(MemoryKey.JOB_SITE, null);
+                if (villager.getProfession() == PROFESSIONS.get(broken)
+                        && villager.getVillagerLevel() == 1
+                        && villager.getVillagerExperience() == 0) {
+                    villager.setProfession(Villager.Profession.NONE);
+                }
             }
         }
     }
 
     private boolean isCandidate(Villager villager) {
-        return villager.getVillagerLevel() == 1 && villager.getVillagerExperience() == 0;
+        return villager.isAdult()
+                && villager.getProfession() == Villager.Profession.NONE
+                && villager.getVillagerLevel() == 1
+                && villager.getVillagerExperience() == 0;
+    }
+
+    private boolean canSeeWorkstation(Villager villager, Location workstation) {
+        Location target = workstation.clone().add(0.5, 0.5, 0.5);
+        Location eyeLocation = villager.getEyeLocation();
+        Vector direction = target.toVector().subtract(eyeLocation.toVector());
+        double distance = direction.length();
+        if (distance == 0.0) {
+            return true;
+        }
+
+        RayTraceResult hit = villager.getWorld().rayTraceBlocks(
+                eyeLocation,
+                direction.normalize(),
+                distance,
+                FluidCollisionMode.NEVER,
+                true
+        );
+        return hit == null || hit.getHitBlock() == workstation.getBlock();
     }
 }
